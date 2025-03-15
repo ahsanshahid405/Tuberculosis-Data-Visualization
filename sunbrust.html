@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Sunburst Chart</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        .tooltip {
+            position: absolute;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+            pointer-events: none;
+            opacity: 0;
+        }
+        .legend {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+        }
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            border-radius: 3px;
+        }
+        svg {
+            display: block;
+            margin: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1 style="text-align: center;">Interactive Sunburst Chart for Population Data</h1>
+    <div style="text-align: center; margin-bottom: 20px;">
+        <label for="region-filter">Filter by Region:</label>
+        <select id="region-filter">
+            <option value="All">All</option>
+        </select>
+    </div>
+    <svg width="800" height="800"></svg>
+    <div class="tooltip"></div>
+    <div class="legend"></div>
+    <script src="sunbrust.js"></script>
+</body>
+</html>

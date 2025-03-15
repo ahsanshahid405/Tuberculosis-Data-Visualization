@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Interactive Force-Directed Graph</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding: 20px;
+      height: 100vh;
+      margin: 0;
+    }
+
+    #graphContainer {
+      background-color: black;
+      width: 100%;
+      height: 100%;
+    }
+
+    svg {
+      
+      width: 100%;
+      height: 100%;
+      border: 1px solid #ccc;
+    }
+
+    #countryListContainer {
+      background-color: grey;
+      width: 20%;
+      background-color: #f9f9f9;
+      padding: 50px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      overflow-y: auto;
+      max-height: 50vh;
+      margin-left: 50px;
+      position: relative;
+      margin-top: 80px;
+    }
+
+    #countryList li {
+      cursor: pointer;
+      padding: 5px;
+      margin: 5px 0;
+      border-radius: 3px;
+    }
+
+    #countryList li:hover {
+      background-color: #efefef;
+    }
+
+    button {
+      padding: 10px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+
+    button:hover {
+      background-color: #45a049;
+    }
+
+    select {
+      margin: 10px 0;
+      padding: 5px;
+    }
+
+    .tooltip {
+      position: absolute;
+      text-align: center;
+      padding: 5px;
+      font-size: 12px;
+      background: #f9f9f9;
+      border: 1px solid #ccc;
+      border-radius: 3px;
+      pointer-events: none;
+      opacity: 0;
+    }
+
+    
+  </style>
+</head>
+<body>
+  <div id="graphContainer">
+    <h1>Interactive Force-Directed Graph</h1>
+    <div id="tooltip" class="tooltip"></div>
+    <svg id="graph"></svg>
+  </div>
+
+  <!-- Country List Container -->
+  <div id="countryListContainer" style="display: none;">
+    <h3>Countries in Region</h3>
+    <div id="countryList"></div>
+    <button id="resetButton">Reset</button>
+  </div>
+
+  <!-- Age Group Dropdown -->
+  <div>
+    <label for="ageGroupFilter">Filter by Age Group:</label>
+    <select id="ageGroupFilter">
+      <option value="M_Age0to14">Male Age 0-14</option>
+      <option value="M_Age15to24">Male Age 15-24</option>
+      <option value="M_Age25to34">Male Age 25-34</option>
+      <option value="M_Age35to44">Male Age 35-44</option>
+      <option value="M_Age45to54">Male Age 45-54</option>
+      <option value="M_Age55to64">Male Age 55-64</option>
+      <option value="M_Age65Plus">Male Age 65+</option>
+      <option value="F_Age0to14">Female Age 0-14</option>
+      <option value="F_Age15to24">Female Age 15-24</option>
+      <option value="F_Age25to34">Female Age 25-34</option>
+      <option value="F_Age35to44">Female Age 35-44</option>
+      <option value="F_Age45to54">Female Age 45-54</option>
+      <option value="F_Age55to64">Female Age 55-64</option>
+      <option value="F_Age65Plus">Female Age 65+</option>
+      <option value="TotalPopAffected">Total Population Affected</option>
+    </select>
+  </div>
+
+  <script>
+    const width = 1200, height = 800;
+
+    const svg = d3.select("svg")
+      .attr("width", width)
+      .attr("height", height)
+      .call(d3.zoom()
+        .scaleExtent([0.1, 2]) // Allow further zoom out
+        .on("zoom", (event) => {
+          g.attr("transform", event.transform);
+        }))
+      .append("g");
+
+    const g = svg.append("g");
+
+    const tooltip = d3.select("#tooltip");
+
+    const color = d3.scaleOrdinal(d3.schemeCategory10);
+
+    let data;
+
+    d3.csv("Force_directed_graph.csv").then(loadedData => {
+      data = loadedData;
+      const regions = [...new Set(data.map(d => d.Region))];
+      
+      const nodes = [
+        ...regions.map(region => ({ id: region, group: "Region", name: region })), 
+        ...data.map(d => ({
+          id: d.Country,
+          group: d.Region,
+          name: d.Country,
+          total_pop_affected: +d.TotalPopAffected
+        }))
+      ];
+
+      const links = data.map(d => ({
+        source: d.Region,
+        target: d.Country,
+        value: +d.TotalPopAffected
+      }));
+
+      const simulation = d3.forceSimulation(nodes)
+        .force("link", d3.forceLink(links).id(d => d.id).distance(100)) // Correctly using the links array
+        .force("charge", d3.forceManyBody().strength(-300)) // Stronger repulsion
+        .force("center", d3.forceCenter(width / 2, height / 2))
+        .force("x", d3.forceX(width / 2).strength(0.05))
+        .force("y", d3.forceY(height / 2).strength(0.05))
+        .force("collide", d3.forceCollide(50)); // Avoid overlap
+
+      const link = g.append("g")
+        .attr("stroke", "#4682b4") 
+        .attr("stroke-opacity", 0.6) 
+        .selectAll("line")
+        .data(links)
+        .join("line")
+        .attr("stroke-width", d => Math.sqrt(d.value) * 0.0002); // Reduced the link width for better visibility
+
+      const node = g.append("g")
+        .attr("stroke", "#fff")
+        .attr("stroke-width", 1.5)
+        .selectAll("circle")
+        .data(nodes)
+        .join("circle")
+        .attr("r", d => d.group === 'Region' ? 25 : 12)
+        .attr("fill", d => color(d.group))
+        .on("mouseover", (event, d) => {
+          tooltip.style("opacity", 1)
+            .html(`<strong>${d.name}</strong><br>` + 
+                  (d.total_pop_affected ? `Affected Population: ${d.total_pop_affected}` : ''))
+            .style("left", (event.pageX + 10) + "px")
+            .style("top", (event.pageY - 10) + "px");
+        })
+        .on("mouseout", () => tooltip.style("opacity", 0))
+        .on("click", (event, d) => {
+          if (d.group === "Region") {
+            showCountriesInRegion(d.name);
+          }
+        })
+        .call(d3.drag()
+          .on("start", dragstarted)
+          .on("drag", dragged)
+          .on("end", dragended));
+
+      node.append("title")
+        .text(d => d.name);
+
+      simulation.on("tick", () => {
+        link
+          .attr("x1", d => d.source.x)
+          .attr("y1", d => d.source.y)
+          .attr("x2", d => d.target.x)
+          .attr("y2", d => d.target.y);
+
+        node
+          .attr("cx", d => d.x)
+          .attr("cy", d => d.y);
+      });
+
+      function dragstarted(event) {
+        if (!event.active) simulation.alphaTarget(0.3).restart();
+        event.subject.fx = event.subject.x;
+        event.subject.fy = event.subject.y;
+      }
+
+      function dragged(event) {
+        event.subject.fx = event.x;
+        event.subject.fy = event.y;
+      }
+
+      function dragended(event) {
+        if (!event.active) simulation.alphaTarget(0);
+        event.subject.fx = null;
+        event.subject.fy = null;
+      }
+    });
+
+    // Function to display countries in a selected region
+    function showCountriesInRegion(region) {
+      const countriesInRegion = data.filter(d => d.Region === region).map(d => d.Country);
+      const countryList = d3.select("#countryList").html(
+        `<ul>` + 
+        countriesInRegion.map(country => 
+          `<li data-country="${country}">${country}</li>`).join("") + 
+        "</ul>"
+      );
+
+      countryList.selectAll("li")
+        .on("click", (event, d) => {
+          alert(`Country Selected: ${d}`);
+        });
+
+      d3.select("#countryListContainer").style("display", "block");
+    }
+
+    // Reset button functionality
+    d3.select("#resetButton").on("click", () => {
+      d3.select("#countryListContainer").style("display", "none");
+    });
+
+  </script>
+</body>
+</html>

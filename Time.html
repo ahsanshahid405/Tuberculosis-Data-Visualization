@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Time-Lapse Visualization with Bar Chart</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      text-align: center;
+    }
+    #map {
+      position: relative;
+      margin: 20px auto;
+      width: 960px;
+      height: 500px;
+    }
+    .tooltip {
+      position: absolute;
+      background: white;
+      padding: 8px;
+      border: 1px solid black;
+      border-radius: 5px;
+      pointer-events: none;
+      opacity: 0;
+      font-size: 14px;
+    }
+    .year-label {
+      font-size: 24px;
+      font-weight: bold;
+      text-anchor: middle;
+      fill: #333;
+    }
+    #year-slider {
+      margin-top: 20px;
+      width: 960px;
+    }
+    .bar-chart {
+      margin: 20px auto;
+      width: 960px;
+      height: 300px;
+    }
+    .bar {
+      fill: steelblue;
+    }
+    .bar-label {
+      font-size: 12px;
+      fill: #333;
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <input id="year-slider" type="range" min="1980" max="2020" value="1980">
+  <div class="tooltip" id="tooltip"></div>
+  <div class="bar-chart"></div>
+  <script>
+    const width = 960, height = 500;
+    const barChartHeight = 300;
+    const barChartMargin = { top: 20, right: 20, bottom: 50, left: 50 };
+    const startYear = 1980, endYear = 2020;
+    let currentYear = startYear;
+    let autoScrollInterval;
+    let isPaused = false;
+
+    const svg = d3.select("#map")
+      .append("svg")
+      .attr("width", width)
+      .attr("height", height);
+
+    const barChartSvg = d3.select(".bar-chart")
+      .append("svg")
+      .attr("width", width)
+      .attr("height", barChartHeight);
+
+    const tooltip = d3.select("#tooltip");
+
+    const projection = d3.geoMercator().scale(150).translate([width / 2, height / 1.5]);
+    const path = d3.geoPath().projection(projection);
+
+    const colorScale = d3.scaleSequential(d3.interpolateRdBu)
+  .domain([49989189, 699]); // Blue at the lowest point and red at the highest point
+// Blue at the lowest point and red at the highest point
+// Adjust domain based on your TotalPopAffected range
+
+    Promise.all([
+      d3.json("world.geojson"),
+      d3.csv("Data.csv", d => ({
+        Country: d.Country,
+        Year: +d.Year,
+        TotalPopAffected: +d.TotalPopAffected
+      }))
+    ]).then(([geojson, csvData]) => {
+      const dataByYear = d3.group(csvData, d => d.Year);
+
+      const geoData = geojson.features.map(feature => {
+        const countryCode = feature.id;
+        feature.properties.data = csvData.filter(d => d.Country === countryCode);
+        return feature;
+      });
+
+      const countries = svg.selectAll("path")
+        .data(geoData)
+        .join("path")
+        .attr("d", path)
+        .attr("fill", d => {
+          const countryData = d.properties.data.find(data => data.Year === currentYear);
+          return countryData ? colorScale(countryData.TotalPopAffected) : "lightgrey";
+        })
+        .attr("stroke", "#333")
+        .on("mouseover", (event, d) => {
+          const countryData = d.properties.data.find(data => data.Year === currentYear);
+          if (countryData) {
+            tooltip.style("opacity", 1)
+              .html(`
+                <strong>Country:</strong> ${countryData.Country}<br>
+                <strong>Year:</strong> ${currentYear}<br>
+                <strong>Total Affected:</strong> ${countryData.TotalPopAffected.toLocaleString()}
+              `)
+              .style("left", `${event.pageX + 10}px`)
+              .style("top", `${event.pageY + 10}px`);
+          }
+        })
+        .on("mouseout", () => tooltip.style("opacity", 0));
+
+      const yearLabel = svg.append("text")
+        .attr("class", "year-label")
+        .attr("x", width / 2)
+        .attr("y", height - 20)
+        .attr("text-anchor", "middle")
+        .text(currentYear);
+
+      function updateBarChart(year) {
+        const yearData = dataByYear.get(year) || [];
+        const sortedData = [...yearData].sort((a, b) => b.TotalPopAffected - a.TotalPopAffected);
+
+        const top5 = sortedData.slice(0, 5);
+        const bottom5 = sortedData.slice(-5).reverse();
+
+        const barData = [...top5, ...bottom5];
+
+        const xScale = d3.scaleBand()
+          .domain(barData.map(d => d.Country))
+          .range([barChartMargin.left, width - barChartMargin.right])
+          .padding(0.1);
+
+        const yScale = d3.scaleLinear()
+          .domain([0, d3.max(barData, d => d.TotalPopAffected)])
+          .nice()
+          .range([barChartHeight - barChartMargin.bottom, barChartMargin.top]);
+
+        barChartSvg.selectAll(".bar")
+          .data(barData)
+          .join("rect")
+          .attr("class", "bar")
+          .attr("x", d => xScale(d.Country))
+          .attr("y", d => yScale(d.TotalPopAffected))
+          .attr("width", xScale.bandwidth())
+          .attr("height", d => barChartHeight - barChartMargin.bottom - yScale(d.TotalPopAffected));
+
+        barChartSvg.selectAll(".bar-label")
+          .data(barData)
+          .join("text")
+          .attr("class", "bar-label")
+          .attr("x", d => xScale(d.Country) + xScale.bandwidth() / 2)
+          .attr("y", d => yScale(d.TotalPopAffected) - 5)
+          .attr("text-anchor", "middle")
+          .text(d => d.Country);
+      }
+
+      function updateMap(year) {
+        countries.attr("fill", d => {
+          const countryData = d.properties.data.find(data => data.Year === year);
+          return countryData ? colorScale(countryData.TotalPopAffected) : "lightgrey";
+        });
+
+        yearLabel.text(year);
+        d3.select("#year-slider").property("value", year);
+
+        updateBarChart(year);
+      }
+
+      function autoScrollYears() {
+        autoScrollInterval = setInterval(() => {
+          currentYear++;
+          if (currentYear > endYear) {
+            currentYear = startYear; // Loop back to start
+          }
+          updateMap(currentYear);
+        }, 500); // Faster automatic scrolling
+      }
+
+      function stopAutoScroll() {
+        clearInterval(autoScrollInterval);
+        isPaused = true;
+      }
+
+      function resumeAutoScroll() {
+        if (isPaused) {
+          isPaused = false;
+          autoScrollYears();
+        }
+      }
+
+      d3.select("#year-slider").on("input", function () {
+        stopAutoScroll();
+        currentYear = +this.value;
+        updateMap(currentYear);
+      });
+
+      d3.select("#year-slider").on("mouseup", () => {
+        setTimeout(resumeAutoScroll, 1000);
+      });
+
+      autoScrollYears();
+      updateMap(currentYear);
+    });
+  </script>
+</body>
+</html>
