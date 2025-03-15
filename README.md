@@ -207,6 +207,6 @@ Then, open `http://localhost:8000/index.html` in your browser.
 ## Contributors
 
 - **Ahsan Abdul** ([i221870@nu.edu.pk](mailto:i221870@nu.edu.pk))
-- **M Zaid** ([i221934@nu.edu.pk](mailto:i221934@nu.edu.pk))
+- **M Zaid** ([i221934@nu.edu.pk](mailto:i221934@nu.edu.pk))  | (GitHub : https://github.com/zaidasim)
 - **Awais Arshad** ([i221989@nu.edu.pk](mailto:i221989@nu.edu.pk))
 
